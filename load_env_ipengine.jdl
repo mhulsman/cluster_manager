@@ -1,0 +1,24 @@
+[
+ JobType="Parametric";
+ VirtualOrganisation="lsgrid";
+ Executable="load_env_ipengine.sh";
+ StdOutput="stdout.txt";
+ StdError="stderror.txt";
+ ParameterStart=0;
+ ParameterStep=1;
+ Parameters=XXNJOBXX;
+ Arguments = "XXENVPATHXX XXADDRESSXX XXPORTXX _PARAM_"
+ InputSandbox={"XXAPPPATHXX/load_env_ipengine.sh", "XXAPPPATHXX/cluster_storage.py", "XXAPPPATHXX/gcp", "engine.furl"};
+ OutputSandbox={"stdout.txt","stderror.txt"};
+ Requirements=(
+   ( !RegExp("kun", other.GlueCEUniqueID) ) &&
+   ( !RegExp("rug", other.GlueCEUniqueID) ) &&
+   ( !RegExp("nki", other.GlueCEUniqueID) ) &&
+   ( !RegExp("uu", other.GlueCEUniqueID) ) &&
+   ( !RegExp("lumc", other.GlueCEUniqueID) ) &&
+   ( !RegExp("amc", other.GlueCEUniqueID) ) &&
+   ( !RegExp("wur", other.GlueCEUniqueID) ) &&
+   ( other.GlueCEPolicyMaxWallClockTime > 300) 
+);
+ ShallowRetryCount=3;
+]

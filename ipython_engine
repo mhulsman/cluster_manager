@@ -1,0 +1,7 @@
+#PBS -N ipython
+#PBS -j oe
+#PBS -k n
+#PBS -V
+#PBS -r n
+cd $PBS_O_WORKDIR
+$EPATH/ipengine_chief.py -t PBS -a $ADDRESS -p $PORT
