@@ -8,6 +8,8 @@ import threading
 import cluster_storage
 from collections import defaultdict
 
+import socket
+from dns import resolver,reversename
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 import random
 import psutil
@@ -1077,11 +1079,27 @@ def start_grid_monitor(status):
     t.start()
 
 
+def get_hostname():
+    #get IP address
+    socket.setdefaulttimeout(30)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); 
+    s.connect(('google.com', 0)); 
+    myip = s.getsockname()[0]
+
+    try:
+        addr=reversename.from_address(myip)
+        myip = str(resolver.query(addr,"PTR")[0])[:-1]
+    except Exception,e:
+        pass
+
+    return myip
+
+
 def main(scr, *args, **kwds):
     opts,args = getopt.getopt(sys.argv[1:],"e:a:p:i:",["env=","address=","port=","iport="])
 
-    envname = "grid:/enhance.dist"
-    address = "gb-ui-tud.ewi.tudelft.nl"
+    envname = "grid:/ipengine.dist"
+    address = None
     iport   = "30023"
     port    = "30024"
     for o,a in opts:
@@ -1094,6 +1112,9 @@ def main(scr, *args, **kwds):
         elif o in ('-i', '--iport'):
             iport = a
     
+    if address is None:
+        address = get_hostname()
+
     init_status(status,envname,address,port,iport)
     gb.scr = scr
     gb.log_file = open('cluster.log','w')
