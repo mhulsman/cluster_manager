@@ -4,4 +4,4 @@
 #PBS -V
 #PBS -r n
 cd $PBS_O_WORKDIR
-XXABSPATHXX/ipengine_chief -t PBS -a $ADDRESS -p $PORT
+XXAPPPATHXX/ipengine_chief -t PBS -a $ADDRESS -p $PORT
