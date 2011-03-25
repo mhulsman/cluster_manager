@@ -4,4 +4,4 @@
 #PBS -V
 #PBS -r n
 cd $PBS_O_WORKDIR
-$EPATH/ipengine_chief.py -t PBS -a $ADDRESS -p $PORT
+XXABSPATHXX/ipengine_chief -t PBS -a $ADDRESS -p $PORT

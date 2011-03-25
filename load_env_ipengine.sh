@@ -29,7 +29,7 @@ echo "Environment loaded for $PARAMNR, starting work."
 
 #run job
 cd work
-./ipengine_chief.py -a $ADDRESS -p $PORT -l -t GRID
+./ipengine_chief -a $ADDRESS -p $PORT -l -t GRID
 
 #cleaning
 echo "Work for $PARAMNR finished, cleaning up..."

@@ -536,7 +536,7 @@ def start_locals(gb,status,n):
             set_status_message(gb,"Invalid number of engines to be started: " + str(n),YELLOW)
         else: 
             set_status_message(gb,"Starting local engines",YELLOW)
-            chief_path = os.path.dirname(os.path.realpath(__file__)) + "/ipengine_chief.py"
+            chief_path = os.path.dirname(os.path.realpath(__file__)) + "/ipengine_chief"
             cmd = chief_path + " -t LOCAL -a " + str(status.address) + " -p " + str(status.port)
             add_log_line(gb,"Starting engines using: " + cmd,GREEN)
             args = shlex.split(cmd)
