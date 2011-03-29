@@ -476,7 +476,7 @@ def start_controller(gb,status):
         status.controller_monitor = psutil.Process(pc.pid)
     finally:
         status.lock.release()
-    log_output(pc.stdout,gb,WHITE,['distributing Tasks','Getting task result','Queuing task','sync properties'])
+    log_output(pc.stdout,gb,WHITE,['distributing Tasks','Getting task result','Queuing task','sync properties','Clearing','Cleared'])
     log_output(pc.stderr,gb,RED)
     set_progress_bar(gb,0.4)
 
@@ -643,14 +643,14 @@ def start_grid(gb,status,n):
                 os.remove(tmp_jdl)
             
             engine_path = os.path.dirname(os.path.realpath(__file__))
-            cmd = "sed -e s:XXNJOBXX:" + str(n) + ":g -e s:XXADDRESSXX:" + status.address + ":g -e s:XXPORTXX:" + str(status.port) + ":g -e s:XXENVPATHXX:" + status.envname + ":g -e s:XXAPPPATHXX:" + engine_path + ":g " + engine_path + "/load_env_ipengine.jdl"
+            cmd = "sed -e s:XXNJOBXX:" + str(n) + ":g -e s:XXADDRESSXX:" + status.address + ":g -e s:XXPORTXX:" + str(status.port) + ":g -e s#XXENVPATHXX#" + status.envname + "#g -e s:XXAPPPATHXX:" + engine_path + ":g " + engine_path + "/ipengine.jdl"
             args = shlex.split(cmd)
             Popen(args,stdout=open(tmp_jdl,'w')).wait()
             
             cmd = "glite-wms-job-submit -d " + os.environ["USER"] + " --nomsg " + tmp_jdl
 
             args = shlex.split(cmd)
-            out = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,cwd=engine_path).communicate()
+            out = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE).communicate()
             if(out[1]):
                 add_log_line(gb,"GRID job submission failed",RED)
                 for line in out[1].split('\n'):
@@ -740,9 +740,8 @@ def _cancel_grid(ids):
         #        add_log_line(gb,line,RED)
    
 def upload_code(gb,status):
-    cwd = os.getcwd()
-    code_path = "/tmp/__" + status.envname + "_code__.tgz"
-    exclude_path = cwd + "/exclude.dat"
+    code_path = "/tmp/__code_" + str(status.port) + "_.tgz"
+    exclude_path = "exclude.dat"
     
     cmd = "tar -chzf " + code_path + " ./ "
     if(os.path.isfile(exclude_path)):
@@ -786,11 +785,8 @@ def upload_code(gb,status):
 
 def restart_engines(gb,status):
     if(status.grid_engines):
-        if(not upload_code(gb,status)):
-            add_log_line(gb,"Code update failed",RED)
-            return
         grid_count = sum(status.grid_engines_count)
-        stop_grod(gb,status,grid_count)
+        stop_grid(gb,status,grid_count)
     else:
         grid_count = 0
 
@@ -845,24 +841,26 @@ class Commands:
     command_message = ""
     
 
-def reload_engines(gb,status):
-    if(status.grid_engines and not upload_code(gb,status)):
-        add_log_line(gb,"Code update failed",RED)
-    else:
-        Commands.lock.acquire()
-        try:
-            ccounter = 0
-            for engineid in Commands.active_engines.iterkeys():
-                Commands.pending_command[engineid] = RESTART_ENGINE
-                ccounter +=1
-            if(ccounter == 0):
-                set_status_message(gb, "No engines to reload...",YELLOW)
-            else:
-                Commands.command_total = ccounter
-                set_status_message(gb, "Reloading " + str(ccounter) + " engines...",YELLOW)
-                Commands.command_message = "Engine reloading of " + str(ccounter) + " engines is complete"
-        finally:
-            Commands.lock.release()
+def reload_engines(gb,status, upload=True):
+    if upload:
+        if(status.grid_engines and not upload_code(gb,status)):
+            add_log_line(gb,"Code update failed",RED)
+            return False
+
+    Commands.lock.acquire()
+    try:
+        ccounter = 0
+        for engineid in Commands.active_engines.iterkeys():
+            Commands.pending_command[engineid] = RESTART_ENGINE
+            ccounter +=1
+        if(ccounter == 0):
+            set_status_message(gb, "No engines to reload...",YELLOW)
+        else:
+            Commands.command_total = ccounter
+            set_status_message(gb, "Reloading " + str(ccounter) + " engines...",YELLOW)
+            Commands.command_message = "Engine reloading of " + str(ccounter) + " engines is complete"
+    finally:
+        Commands.lock.release()
 
 
 def register(myip,engine_type,cores,totmem):
@@ -895,6 +893,7 @@ def poll(myid,cpu_usage,mem_usage,memphys,memvirt):
     Commands.lock.acquire()
     try:
         cmd = Commands.pending_command[myid]
+        param = status.codeid
         Commands.active_engines[myid] = time.time()
         Commands.engine_stats[myid] = (cpu_usage,mem_usage,memphys,memvirt)
         if(cmd): 
@@ -903,15 +902,22 @@ def poll(myid,cpu_usage,mem_usage,memphys,memvirt):
     except KeyError:
         add_log_line(gb,"Poll for unknown engine id: " + myid,RED)
         cmd = DIE
+        param = None
     finally:
         Commands.lock.release()
-    return cmd
+    return cmd, param
         
 
 def unregister(myid):
     et = _unregister(myid)
     add_log_line(gb,"Engine (" + et + ") with id " + myid + " unregistered",CYAN)
     return True
+
+def reload():
+    reload_engines(gb,status, upload=False)
+    return True
+    
+    
 
 def _unregister(myid):
     Commands.lock.acquire()
@@ -937,6 +943,7 @@ def thread_start_server(port):
     server.register_function(register)
     server.register_function(unregister)
     server.register_function(poll)
+    server.register_function(reload)
     Commands.server = server
     server.serve_forever()
 

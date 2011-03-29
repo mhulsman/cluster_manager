@@ -101,7 +101,7 @@ try:
         e_mem = lengine_monitor.get_memory_percent()
         e_memphys,e_memvirt = lengine_monitor.get_memory_info()
 
-        cmd = s.poll(myid,e_cpu,e_mem * e_ncpu, e_memphys / 1024.0 / 1024.0, e_memvirt / 1024.0 / 1024.0)
+        cmd,param = s.poll(myid,e_cpu,e_mem * e_ncpu, e_memphys / 1024.0 / 1024.0, e_memvirt / 1024.0 / 1024.0)
         print "POLL",cmd
 
         if(cmd):
@@ -111,8 +111,9 @@ try:
                 break
             elif(cmd == RESTART_ENGINE):
                 stop_engine(lengine)
-                lengine = start_engine(mycodeid)
+                lengine = start_engine(param)
                 lengine_monitor = psutil.Process(lengine.pid)
+                continue
             else:
                 print "UNKNOWN COMMAND RECEIVED, EXITING!"
                 stop_engine(lengine)
