@@ -271,11 +271,19 @@ def build_windows(gb):
         gb.lock = threading.RLock()
     gb.lock.acquire()
     try:
+        
+        #clear screen in curses does not work somehow. 
+        print "\033[2J"
 
         gb.scr.erase()
+        gb.scr.refresh()
         curses.start_color()
         curses.curs_set(0)
-        size = gb.scr.getmaxyx()
+        
+        #curses getmaxyx does not work for resize screens to smaller sizes. Use stty instead. 
+        rows, columns = os.popen('stty size', 'r').read().split()       
+        size = (int(rows), int(columns))
+
         com_win_rows = max(0,min(20,size[0]-2))
         status_win_rows = max(0,min(2,size[0] - com_win_rows))
         log_win_rows = max(0,size[0] - com_win_rows - status_win_rows)
@@ -297,24 +305,24 @@ def build_windows(gb):
             gb.wlog.setscrreg(0,gb.wlog_size[0]-1)
             gb.wlog.idlok(True)
             gb.wlog.scrollok(True)
-            gb.wlog.noutrefresh()
+            gb.wlog.refresh()
         else:
             gb.wlog = None
 
         #com window
-        if(com_win_rows > 2):
+        if(com_win_rows > 10):
             com_win_cols = size[1] / 2
             if(com_win_cols > 55):
                 comlog_win_cols = size[1] - 55
                 com_win_cols = 55
                 gb.wcom_status = border_win(gb.scr,com_win_rows,comlog_win_cols,log_win_rows,com_win_cols,notop=True,noleft=True)
-                gb.wcom_status.noutrefresh()
+                gb.wcom_status.refresh()
             else:
                 com_win_cols = size[1]
                 gb.wcom_status = None
         
             gb.wcom = border_win(gb.scr,com_win_rows,com_win_cols,log_win_rows,0,notop=True)
-            gb.wcom.noutrefresh()
+            gb.wcom.refresh()
         else:
             gb.wcom = None
             gb.wcom_status = None
@@ -322,7 +330,7 @@ def build_windows(gb):
         #status window
         if(status_win_rows == 2):
             gb.wstatus = gb.scr.subwin(status_win_rows,size[1],log_win_rows + com_win_rows,0)
-            gb.wstatus.noutrefresh()
+            gb.wstatus.refresh()
         else:
             gb.wstatus = None
 
@@ -354,6 +362,8 @@ def add_log_line(gb,line,color=0):
                 gb.wlog.scroll()
                 gb.wlog.addstr(gb.wlog_size[0] - 1,1,line,curses.color_pair(color))
             gb.wlog.refresh()
+    except Exception, e:
+        pass
     finally:
         gb.lock.release()
 
@@ -365,6 +375,8 @@ def set_status_message(gb,line,color=0):
             gb.wstatus.addstr(0,0,line,curses.color_pair(color))
             gb.wstatus.clrtoeol()
             gb.wstatus.refresh()
+    except Exception, e:
+        pass
     finally:
         gb.lock.release()
 
@@ -395,6 +407,8 @@ def stop_progress_bar(gb):
             gb.wstatus.addstr(1,0,"")
             gb.wstatus.clrtoeol()
             gb.wstatus.refresh()
+    except Exception, e:
+        pass
     finally:
         gb.lock.release()
 
@@ -402,20 +416,24 @@ def stop_progress_bar(gb):
 def init_commands(gb):
     gb.lock.acquire()
     try:
-        gb.wcom.addstr(1,1,"Start/stop controller: a/z")
-        gb.wcom.addstr(2,1,"Start/stop local engines: s/x [n]")
-        gb.wcom.addstr(3,1,"Start/stop PBS engines: d/c [n]")
-        gb.wcom.addstr(4,1,"Start/stop GRID engines: f/v [n]")
-        gb.wcom.addstr(5,1,"Reload all engines: w")
-        gb.wcom.addstr(6,1,"Restart all engines: e")
-        gb.wcom.addstr(8,1,"Refresh screen: r")
-        gb.wcom.addstr(9,1,"Shutdown: q")
-        gb.wcom.refresh()
+        if not gb.wcom is None:
+            gb.wcom.addstr(1,1,"Start/stop controller: a/z")
+            gb.wcom.addstr(2,1,"Start/stop local engines: s/x [n]")
+            gb.wcom.addstr(3,1,"Start/stop PBS engines: d/c [n]")
+            gb.wcom.addstr(4,1,"Start/stop GRID engines: f/v [n]")
+            gb.wcom.addstr(5,1,"Reload all engines: w")
+            gb.wcom.addstr(6,1,"Restart all engines: e")
+            gb.wcom.addstr(8,1,"Shutdown: q")
+            gb.wcom.refresh()
+    except Exception, e:
+        pass
     finally:
         gb.lock.release()
 
 #enter command in command window
 def enter_command(gb,argument="Command: "):
+    if gb.wcom is None:
+        return
     gb.lock.acquire()
     try:
         command = ""
@@ -1130,26 +1148,31 @@ def main(scr, *args, **kwds):
     t = start_status_display(gb,status)
     start_server(port)
     start_grid_monitor(status)
-    
+   
+
+    #workaround for bug in curses: no resize messages
+    os.environ['LINES']="blah"
+    del os.environ['LINES']
+    os.environ['COLUMNS']="blah"
+    del os.environ['COLUMNS']
+
     try:
         while 1:
             c = gb.scr.getch()
-
-            if c == ord('q'):  #QUIT
+            if c == curses.KEY_RESIZE:
+                build_windows(gb)
+            elif c == ord('q'):  #QUIT
                 stop_controller(gb,status)
                 stop_status_display(status,t)
                 gb.scr.refresh()
                 break
+                
             elif c == ord('w'): #RELOAD ENGINES
                 reload_engines(gb,status)
 
             elif c == ord('e'): #RESTART ENGINES
                 restart_engines(gb,status)
             
-            elif c == ord('r'): #REFRESH SCREEN
-                build_windows(gb)
-                set_status_message(gb,"Screen refreshed",GREEN)
-
             elif c == ord('a'): #START CONTROLLER
                 if(not controller_online(status)):
                     start_controller(gb,status)
