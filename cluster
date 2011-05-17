@@ -648,7 +648,7 @@ def stop_pbs(gb,status,n):
     finally: 
         status.lock.release()
 
-def start_grid(gb,status,n):
+def start_grid(gb,status,n,selgrid="all"):
     status.lock.acquire()
     try:
         if(not controller_online(status)):
@@ -660,8 +660,13 @@ def start_grid(gb,status,n):
             if(os.path.isfile(tmp_jdl)):
                 os.remove(tmp_jdl)
             
+            if selgrid == "all":
+                selgrid = ""
+            else:
+                selgrid = '"\\( RegExp\\(\\"' + selgrid + '\\"\\, other\\.GlueCEUniqueID\\) \\) \\&\\& "'
+            
             engine_path = os.path.dirname(os.path.realpath(__file__))
-            cmd = "sed -e s:XXNJOBXX:" + str(n) + ":g -e s:XXADDRESSXX:" + status.address + ":g -e s:XXPORTXX:" + str(status.port) + ":g -e s#XXENVPATHXX#" + status.envname + "#g -e s:XXAPPPATHXX:" + engine_path + ":g " + engine_path + "/ipengine.jdl"
+            cmd = "sed -e s:XXSELGRIDXX:" + selgrid + ":g -e s:XXNJOBXX:" + str(n) + ":g -e s:XXADDRESSXX:" + status.address + ":g -e s:XXPORTXX:" + str(status.port) + ":g -e s#XXENVPATHXX#" + status.envname + "#g -e s:XXAPPPATHXX:" + engine_path + ":g " + engine_path + "/ipengine.jdl"
             args = shlex.split(cmd)
             Popen(args,stdout=open(tmp_jdl,'w')).wait()
             
@@ -1202,8 +1207,11 @@ def main(scr, *args, **kwds):
                     stop_pbs(gb,status,cmd)
             elif c == ord('f'):  #START GRID engines
                 cmd = get_number(gb, "Number of engines (def=4): ",4)
+                selgrid = enter_command(gb, "Enter specific grid (def=all): ")
+                if selgrid == "":
+                    selgrid = "all"
                 if(not cmd is None):
-                    start_grid(gb,status,cmd)
+                    start_grid(gb,status,cmd, selgrid)
 
             elif c == ord('v'):  #STOP GRID engines
                 cmd = get_number(gb, "Number of engines (def=all): ",sum(status.grid_engines_count))

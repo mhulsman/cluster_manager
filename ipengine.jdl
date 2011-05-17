@@ -18,6 +18,7 @@
    ( !RegExp("lumc", other.GlueCEUniqueID) ) &&
    ( !RegExp("amc", other.GlueCEUniqueID) ) &&
    ( !RegExp("wur", other.GlueCEUniqueID) ) &&
+   XXSELGRIDXX
    ( other.GlueCEPolicyMaxWallClockTime > 300) 
 );
  ShallowRetryCount=3;
