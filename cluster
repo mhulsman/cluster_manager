@@ -243,7 +243,7 @@ def thread_display_status(gb,status):
                 
                 gb.wcom_status.refresh()
         except Exception,e:
-            add_log_line(gb,"Exception in display thread: " + str(e),RED)
+            add_log_line(gb,"Exception in display thread: " + str(e), RED)
         finally:
             gb.lock.release()
             status.lock.release()
@@ -514,7 +514,7 @@ def start_controller(gb,status):
         time.sleep(5)
         while(retry):
             try:
-                status.taskclient = Client(client_json_path)
+                status.taskclient = Client(client_json_path).load_balanced_view()
                 retry = 0
             except Exception, e:
                 retry -=1
@@ -538,7 +538,7 @@ def stop_controller(gb,status):
             stop_grid(gb,status,sum(status.grid_engines_count))
         
         status.taskclient = None
-        set_status_message(gb,"Waiting for controller to terminate..",YELLOW)
+        set_status_message(gb,"Waiting for controller to terminate..", YELLOW)
         if(controller_online(status)):
             status.controller.terminate()
             status.controller = None
@@ -546,22 +546,22 @@ def stop_controller(gb,status):
             time.sleep(2) #finishes log output, lets threads terminate
     finally:
         status.lock.release()
-    set_status_message(gb,"Controller offline..",YELLOW)
-    add_log_line(gb,"Controller stopped",MAGENTA)
+    set_status_message(gb, "Controller offline..", YELLOW)
+    add_log_line(gb,"Controller stopped", MAGENTA)
 
 
 def start_locals(gb,status,n):
     status.lock.acquire()
     try:
         if(not controller_online(status)):
-            set_status_message(gb,"Controller is not online",YELLOW)
+            set_status_message(gb,"Controller is not online", YELLOW)
         elif(n < 0):
-            set_status_message(gb,"Invalid number of engines to be started: " + str(n),YELLOW)
+            set_status_message(gb,"Invalid number of engines to be started: " + str(n), YELLOW)
         else: 
-            set_status_message(gb,"Starting local engines",YELLOW)
+            set_status_message(gb,"Starting local engines", YELLOW)
             chief_path = os.path.dirname(os.path.realpath(__file__)) + "/ipengine_chief"
             cmd = chief_path + " -t LOCAL -a " + str(status.address) + " -p " + str(status.port)
-            add_log_line(gb,"Starting engines using: " + cmd,GREEN)
+            add_log_line(gb,"Starting engines using: " + cmd, GREEN)
             args = shlex.split(cmd)
         
             set_progress_bar(gb,0.0)
@@ -573,8 +573,8 @@ def start_locals(gb,status,n):
                 set_progress_bar(gb,float(i+1) / float(n))
             time.sleep(2)
             stop_progress_bar(gb)
-            set_status_message(gb,"Local engines started",GREEN)
-            add_log_line(gb,str(n) + " local engines started",MAGENTA)
+            set_status_message(gb,"Local engines started", GREEN)
+            add_log_line(gb,str(n) + " local engines started", MAGENTA)
     finally:
         status.lock.release()
 
