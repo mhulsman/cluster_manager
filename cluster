@@ -14,7 +14,7 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer
 import random
 import psutil
 import numpy
-from IPython.kernel import client
+from IPython.parallel import Client
 
 WHITE=0
 RED=1
@@ -278,7 +278,11 @@ def build_windows(gb):
         gb.scr.erase()
         gb.scr.refresh()
         curses.start_color()
-        curses.curs_set(0)
+        # Invisibility mode of the cursor may not be supported by the terminal
+        try :
+            curses.curs_set(0)
+        except :
+            pass
         
         #curses getmaxyx does not work for resize screens to smaller sizes. Use stty instead. 
         rows, columns = os.popen('stty size', 'r').read().split()       
@@ -485,9 +489,10 @@ def start_controller(gb,status):
     status.lock.acquire()
     try:
         cwd = os.getcwd()
-        furl_path = cwd + "/engine.furl"
-        cmd = "ipcontroller --engine-port=" + str(status.iport) + " --engine-location=" + status.address + " --engine-furl=" + furl_path
-        add_log_line(gb,"Executing: " + cmd,GREEN)
+        engine_json_path = "./profile/security/ipcontroller-engine.json"
+        client_json_path = "./profile/security/ipcontroller-client.json"
+        cmd = "ipcontroller --port=" + str(status.iport) + " --location=" + status.address + " --hwm=" + str(status.hwm) + " --usethreads" + " --ip=*" + " --ProfileDir.location=" + cwd + "/profile/"
+        add_log_line(gb,"Executing: " + cmd, GREEN)
         args = shlex.split(cmd)
         pc = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         status.controller = pc
@@ -498,7 +503,7 @@ def start_controller(gb,status):
     log_output(pc.stderr,gb,RED)
     set_progress_bar(gb,0.4)
 
-    while(pc.poll() is None and not os.path.exists(furl_path)):
+    while(pc.poll() is None and not os.path.exists(engine_json_path)):
         time.sleep(1)
 
     if(not pc.poll() is None):
@@ -509,7 +514,7 @@ def start_controller(gb,status):
         time.sleep(5)
         while(retry):
             try:
-                status.taskclient = client.TaskClient()
+                status.taskclient = Client(client_json_path)
                 retry = 0
             except Exception, e:
                 retry -=1
@@ -603,9 +608,6 @@ def start_pbs(gb,status,n):
             set_status_message(gb,"Invalid number of engines to be started: " + str(n),YELLOW)
         else: 
             set_status_message(gb,"Starting PBS engines",YELLOW)
-            cwd = os.getcwd()
-            furl_path = cwd + "/engine.furl"
-
             engine_path = os.path.dirname(os.path.realpath(__file__))
             cmd = "qsub -N ipython_engine -k n -V -v EPATH=" + engine_path + ",ADDRESS=" + status.address + ",PORT=" + status.port + " " + engine_path + "/ipython_engine"
             add_log_line(gb,"Starting engines using: " + cmd,GREEN)
@@ -837,12 +839,13 @@ def restart_engines(gb,status):
     add_log_line(gb,"All cluster engines restarted",MAGENTA)
 
 
-def init_status(status,envname,address,port,iport):
+def init_status(status,envname,address,port,iport,hwm):
     status.lock = threading.RLock()
     status.envname = envname
     status.address = address
     status.port = port
     status.iport = iport
+    status.hwm = hwm
 
 
 
@@ -1132,6 +1135,7 @@ def main(scr, *args, **kwds):
     address = None
     iport   = "30023"
     port    = "30024"
+    hwm     = "10"
     for o,a in opts:
         if o in ('-e', '--env'):
             envname = a
@@ -1141,11 +1145,13 @@ def main(scr, *args, **kwds):
             port = a
         elif o in ('-i', '--iport'):
             iport = a
+        elif o in ('--hwm', ):
+            hwm = a
     
     if address is None:
         address = get_hostname()
 
-    init_status(status,envname,address,port,iport)
+    init_status(status,envname,address,port,iport,hwm)
     gb.scr = scr
     gb.log_file = open('cluster.log','w')
 
