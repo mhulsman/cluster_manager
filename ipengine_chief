@@ -65,9 +65,9 @@ def start_engine(mycodeid):
         
         print "Retrieving json file from " + from_json_path + " to " + json_path
         shutil.copyfile(from_json_path, json_path)
-        cmd = "python ../bin/ipengine --file=" + json_path
+        cmd = "python ../bin/ipengine --quiet --file=" + json_path
     else:
-        cmd = "ipengine --file=" + local_json_path
+        cmd = "ipengine --quiet --file=" + local_json_path
     
     print "Starting local engine..."
     args = shlex.split(cmd)
