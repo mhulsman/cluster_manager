@@ -69,6 +69,15 @@ class status:
     engine_type_stats = dict()
 NOSTAT = (0.0, 0.0, 0.0, 0.0, 0.0)
 
+def get_queue_status(status, type) :
+    acc = 0
+    for key, value in status.items() :
+        if key == type :
+            acc += value
+        elif isinstance(key, int) :
+            acc += value.get(type, 0)
+    return acc
+
 #create a bordered window
 def border_win(parent,height,width,x,y,**kwargs):
     if(not 'notop' in kwargs):
@@ -233,13 +242,13 @@ def thread_display_status(gb,status):
                     gb.wcom_status.addstr(7,52,descr,curses.color_pair(color))
                
                 
-                if(status.queue_status):
-                    descr = "Failed: " + str(status.queue_status.get("failed",0))
-                    descr += "  Pending: " + str(status.queue_status.get("pending",0))
-                    descr += "  Scheduled: " + str(status.queue_status.get("scheduled",0))
-                    descr += "  Ready: " + str(status.queue_status.get("succeeded",0))
-                    gb.wcom_status.addstr(9,1,"Queue:")
-                    gb.wcom_status.addstr(9,18,descr)
+                if (status.queue_status) :
+                    descr = "Failed: " + str(get_queue_status(status.queue_status, "failed"))
+                    descr += "  Pending: " + str(get_queue_status(status.queue_status, "unassigned"))
+                    descr += "  Scheduled: " + str(get_queue_status(status.queue_status, "queue"))
+                    descr += "  Ready: " + str(get_queue_status(status.queue_status, "completed"))
+                    gb.wcom_status.addstr(9, 1, "Queue:")
+                    gb.wcom_status.addstr(9, 18, descr)
                 
                 gb.wcom_status.refresh()
         except Exception,e:
@@ -491,10 +500,10 @@ def start_controller(gb,status):
         cwd = os.getcwd()
         engine_json_path = "./profile/security/ipcontroller-engine.json"
         client_json_path = "./profile/security/ipcontroller-client.json"
-        cmd = "ipcontroller --port=" + str(status.iport) + " --reuse --quiet --location=" + status.address + " --hwm=" + str(status.hwm) + " --usethreads" + " --ip=*" + " --ProfileDir.location=" + cwd + "/profile/"
+        cmd = "ipcontroller --port=" + str(status.iport) + " --quiet --sqlitedb --location=" + status.address + " --hwm=" + str(status.hwm) + " --usethreads" + " --ip=*" + " --ProfileDir.location=" + cwd + "/profile/"
         add_log_line(gb,"Executing: " + cmd, GREEN)
         args = shlex.split(cmd)
-        pc = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        pc = Popen(args, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         status.controller = pc
         status.controller_monitor = psutil.Process(pc.pid)
     finally:
@@ -766,7 +775,7 @@ def _cancel_grid(ids):
    
 def upload_code(gb,status):
     code_path = "/tmp/__code_" + str(status.port) + "_.tgz"
-    exclude_path = "exclude.dat"
+    exclude_path = "exclude.dat profile"
     
     cmd = "tar -chzf " + code_path + " ./ "
     if(os.path.isfile(exclude_path)):
