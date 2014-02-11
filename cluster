@@ -727,7 +727,7 @@ def stop_grid(gb,status,n):
 
 def _get_subids_grid(id):
     idstatus = dict()
-    cmd = "/usr/bin/python /opt/glite/bin/glite-wms-job-status --noint -v 0 " + id
+    cmd = "/usr/bin/python /usr/bin/glite-wms-job-status --noint -v 0 " + id
     args = shlex.split(cmd)
     env = os.environ.copy()
     del env['PYTHONPATH']
@@ -775,7 +775,7 @@ def _cancel_grid(ids):
    
 def upload_code(gb,status):
     code_path = "/tmp/__code_" + str(status.port) + "_.tgz"
-    exclude_path = "exclude.dat profile"
+    exclude_path = "exclude.dat"
     
     cmd = "tar -chzf " + code_path + " ./ "
     if(os.path.isfile(exclude_path)):
