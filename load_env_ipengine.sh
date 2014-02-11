@@ -24,7 +24,7 @@ CURDIR=`pwd`
 
 cd sys_enhance
 cat _paths | sed s#ONAME#$CURDIR#g > paths
-source paths
+. ./paths
 echo "Environment loaded for $PARAMNR, starting work."
 
 #run job
