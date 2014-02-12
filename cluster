@@ -500,7 +500,7 @@ def start_controller(gb,status):
         cwd = os.getcwd()
         engine_json_path = "./profile/security/ipcontroller-engine.json"
         client_json_path = "./profile/security/ipcontroller-client.json"
-        cmd = "ipcontroller --port=" + str(status.iport) + " --quiet --sqlitedb --location=" + status.address + " --hwm=" + str(status.hwm) + " --usethreads" + " --ip=*" + " --ProfileDir.location=" + cwd + "/profile/"
+        cmd = "ipcontroller --HubFactory.iopub=%d,%d" % (int(status.iport) - 4, int(status.iport) + 7) +" --HubFactory.task=%d,%d" % (int(status.iport) - 3, int(status.iport) + 6) + " --HubFactory.mux=%d,%d" % (int(status.iport) - 2, int(status.iport) + 5) + " --HubFactory.control=%d,%d" % (int(status.iport) - 1, int(status.iport) + 4) + " --HubFactory.hb=%d,%d" % (int(status.iport) + 2, int(status.iport) + 3) + " --port=" + str(status.iport) + " --quiet --sqlitedb --location=" + status.address + " --hwm=" + str(status.hwm) + " --usethreads" + " --ip=*" + " --ProfileDir.location=" + cwd + "/profile/"
         add_log_line(gb,"Executing: " + cmd, GREEN)
         args = shlex.split(cmd)
         pc = Popen(args, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
@@ -1078,7 +1078,7 @@ def thread_grid_monitor(status):
             idstatus = dict()
             countstatus = defaultdict(int)
             for id in grid_engines:
-                cmd = "/usr/bin/python /opt/glite/bin/glite-wms-job-status --noint -v 0 " + id
+                cmd = "/usr/bin/python /usr/bin/glite-wms-job-status --noint -v 0 " + id
                 args = shlex.split(cmd)
                 env = os.environ.copy()
                 del env['PYTHONPATH']
