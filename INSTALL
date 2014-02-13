@@ -9,27 +9,18 @@ PREREQUISITES
 
 INSTALL
 =======
-1) mkdir <environment_dir>  #should be different dir than the one where this file is located
-2) cd <environment_dir>
-3) ~/path_to_script/create_python_dist.sh <hostname of ui> <ipython_engine_port> <controller_port>
-e.g. ~/path_to_script/create_python_dist.sh gb-ui-tud.ewi.tudelft.nl 12345 12346
 
-If you are not going to use ipython, the hostname and ports arguments still have to be filled in, 
-although there actual value does not matter (ports have to be numbers however)
-
+1) install 'cluster_manager' using Enhance (see github.com/mhulsman).
 
 CHANGE environment
 ==================
-after installation, or moving scripts into work directory
-
-1) cd <environment_dir>
-2) call ~/path_to_script/update_env.sh
-
+after installation, or moving scripts into work directory, if grid is used:
+1) use <enhance_dir>/upload to upload environment
 
 RUN just python
 ===============
 1) adapt load_env_worker.sh
-2) if you need extra files, put them in the work directory (<environment_dir>/your_username/work)
+2) if you need extra files, put them in the work directory (<enhance_dir>/sys_enhance/work)
    and update environment (last paragraph)
 3) if you use ipengine_loadenv.jdl, change XXNJOBXX to the number of jobs you want to run
 4) glite-wms-job-submit -d <delegation_id> -o <jobid_file>  ipengine_loadenv.jdl
