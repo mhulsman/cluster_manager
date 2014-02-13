@@ -8,7 +8,7 @@
  ParameterStep=1;
  Parameters=XXNJOBXX;
  Arguments = "XXENVPATHXX XXADDRESSXX XXPORTXX _PARAM_";
- InputSandbox={"XXAPPPATHXX/load_env_ipengine.sh", "XXAPPPATHXX/cluster_storage.py", "XXAPPPATHXX/gcp", "engine.furl"};
+ InputSandbox={"XXAPPPATHXX/load_env_ipengine.sh", "XXAPPPATHXX/cluster_storage.py", "XXAPPPATHXX/gcp", "./profile/security/ipcontroller-engine.json"};
  OutputSandbox={"stdout.txt","stderror.txt"};
  Requirements=(
    ( !RegExp("kun", other.GlueCEUniqueID) ) &&

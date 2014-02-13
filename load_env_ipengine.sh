@@ -7,7 +7,7 @@ PORT=$3
 PARAMNR=$4
 ENVNAME=`basename $ENVPATH`
 
-export LFC_HOME=XXLFCHOMEXX
+export LFC_HOME=/grid/lsgrid/alexeyg/
 export LFC_HOST=lfc.grid.sara.nl
 
 #Wait a random time to not overload the server after submission of a number of jobs.
@@ -24,7 +24,11 @@ CURDIR=`pwd`
 
 cd sys_enhance
 cat _paths | sed s#ONAME#$CURDIR#g > paths
-source paths
+echo "Where is bash?"
+which bash
+echo "File created?"
+ls -lh ./paths
+. ./paths
 echo "Environment loaded for $PARAMNR, starting work."
 
 #run job
