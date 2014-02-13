@@ -111,21 +111,22 @@ def log_output(file,gb,color=0,filter=[]):
 def get_pbs_stats(status):
     if(not status.pbs_engines):
         return (0,0,0)
+                
     status.lock.acquire()
-    try:
-        cmd = "qstat " + " ".join(status.pbs_engines)
-        args = shlex.split(cmd)
-        p = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        cmd = "gawk '{print $5}'"
-        args = shlex.split(cmd)
-        p2 = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=p.stdout)
-        output = p2.communicate()[0]
-        z = defaultdict(int)
-        for k in output[2:]:
-            z[k] += 1
-        res = (len(status.pbs_engines),z['Q'],z['R'])
-    finally:
-        status.lock.release()
+    pbs_engines = status.pbs_engines
+    cmd = "qstat " + " ".join(pbs_engines)
+    status.lock.release()
+    
+    args = shlex.split(cmd)
+    p = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    cmd = "gawk '{print $5}'"
+    args = shlex.split(cmd)
+    p2 = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=p.stdout)
+    output = p2.communicate()[0]
+    z = defaultdict(int)
+    for k in output[2:]:
+        z[k] += 1
+    res = (len(pbs_engines),z['Q'],z['R'])
     return res
 
 def get_stat_str(stats):
@@ -145,7 +146,10 @@ def get_stat_str(stats):
 #thread display status
 def thread_display_status(gb,status):
     while not status.stop_status_display:
+        stats = get_pbs_stats(status)
+        
         status.lock.acquire()
+        status.pbs_stats = stats
         gb.lock.acquire()
         try:
             if(gb.wcom_status and gb.wcom_status.getmaxyx()[1] > 50):
@@ -184,8 +188,6 @@ def thread_display_status(gb,status):
                     
 
                 gb.wcom_status.addstr(5,1,"PBS engines: ")
-                stats = get_pbs_stats(status)
-                status.pbs_stats = stats
                 unaccounted = stats[2] - status.engine_type_count['PBS']
                 if(stats[2] and not unaccounted != 0):
                     color = GREEN
@@ -336,6 +338,8 @@ def build_windows(gb):
 
         init_commands(gb)
         gb.scr.refresh()
+    except:
+        pass
     finally:
         gb.lock.release()    
 
@@ -363,7 +367,7 @@ def add_log_line(gb,line,color=0):
                 gb.wlog.addstr(gb.wlog_size[0] - 1,1,line,curses.color_pair(color))
             gb.wlog.refresh()
     except Exception, e:
-        pass
+        print e
     finally:
         gb.lock.release()
 
@@ -837,12 +841,13 @@ def restart_engines(gb,status):
     add_log_line(gb,"All cluster engines restarted",MAGENTA)
 
 
-def init_status(status,envname,address,port,iport):
+def init_status(status,envname,address,port,iport,minmemgb=0.0):
     status.lock = threading.RLock()
     status.envname = envname
     status.address = address
     status.port = port
     status.iport = iport
+    status.minmem = minmemgb
 
 
 
@@ -894,12 +899,24 @@ def register(myip,engine_type,cores,totmem):
         while myid in Commands.active_engines:
             counter += 1
             myid = myip + ":" + str(counter)
-    
-        Commands.active_engines[myid] = time.time()
-        Commands.engine_types[myid] = engine_type
-        Commands.engine_stats[myid] = (0.0,0.0,0.0,0.0)
-        Commands.pending_command[myid] = NOOP
-        add_log_line(gb,"Engine (" + engine_type + ", " + str(cores) + "C:" + "{:1.1f}".format((totmem / 1024.0 / float(cores))) + " GB) on " + myip + " registered as: " + myid,CYAN)
+        used_cores = counter + 1
+        unused_cores = cores - used_cores
+
+        totalgb = totmem / 1024.0
+        average_use = totalgb / float(cores)
+        usedgb = status.minmem * used_cores + (average_use - 0.5) * unused_cores
+        
+        if totalgb < usedgb:
+            add_log_line(gb,"Engine (" + engine_type + ", " + str(cores) + "C:" + "{:1.1f}".format(average_use) + " GB) on " + myip + " denied: " + str(totalgb) + "/" + str(usedgb),YELLOW)
+            myid= "DENIED"
+        else:            
+            Commands.active_engines[myid] = time.time()
+            Commands.engine_types[myid] = engine_type
+            Commands.engine_stats[myid] = (0.0,0.0,0.0,0.0)
+            Commands.pending_command[myid] = NOOP
+            add_log_line(gb,"Engine (" + engine_type + ", " + str(cores) + "C:" + "{:1.1f}".format(average_use) + " GB) on " + myip + " registered as: " + myid,CYAN)
+    except Exception, e:            
+        add_log_line(gb,"Exception in register: " + str(e),RED)
     finally:
         Commands.lock.release()
     if(engine_type == "GRID"):
@@ -1126,12 +1143,13 @@ def get_hostname():
 
 
 def main(scr, *args, **kwds):
-    opts,args = getopt.getopt(sys.argv[1:],"e:a:p:i:",["env=","address=","port=","iport="])
+    opts,args = getopt.getopt(sys.argv[1:],"e:a:p:i:m:",["env=","address=","port=","iport=","mem="])
 
     envname = "grid:/ipengine.dist"
     address = None
     iport   = "30023"
     port    = "30024"
+    minmemgb = 0.0
     for o,a in opts:
         if o in ('-e', '--env'):
             envname = a
@@ -1141,11 +1159,13 @@ def main(scr, *args, **kwds):
             port = a
         elif o in ('-i', '--iport'):
             iport = a
-    
+        elif o in ('-m', '--mem'):
+            minmemgb = float(a)
+   
     if address is None:
         address = get_hostname()
 
-    init_status(status,envname,address,port,iport)
+    init_status(status,envname,address,port,iport,minmemgb)
     gb.scr = scr
     gb.log_file = open('cluster.log','w')
 

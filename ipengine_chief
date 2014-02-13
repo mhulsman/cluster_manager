@@ -44,8 +44,12 @@ s = xmlrpclib.ServerProxy('http://' + address + ":" + port)
 e_memtot = psutil.TOTAL_PHYMEM
 e_ncpu = psutil.NUM_CPUS
 myid,mycodeid = s.register(myip,mytype,e_ncpu,e_memtot/1024.0/1024.0)
-
 print "Registered with controller, got id: " + myid
+
+if myid == "DENIED":
+    print "Cluster manager does not like me..."
+    sys.exit()
+ 
 
 cwd = os.getcwd()
 furl_path = cwd + "/engine.furl"
