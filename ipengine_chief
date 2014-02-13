@@ -52,11 +52,12 @@ if myid == "DENIED":
  
 
 cwd = os.getcwd()
-furl_path = cwd + "/engine.furl"
-from_furl_path = "../../engine.furl"
+json_path = cwd + "/ipcontroller-engine.json"
+local_json_path = cwd + "/profile/security/ipcontroller-engine.json"
+from_json_path = cwd + "/../../ipcontroller-engine.json"
 
 def start_engine(mycodeid):
-    if(loadenv):
+    if (loadenv):
         print "Retrieving code file from " + mycodeid 
         code_path = cluster_storage.receive_file(mycodeid)
         
@@ -66,11 +67,11 @@ def start_engine(mycodeid):
         if(r):
             raise RuntimeError, "Code unpacking failed" 
         
-        print "Retrieving furl file from " + from_furl_path + " to " + furl_path
-        shutil.copyfile(from_furl_path,furl_path)
-        cmd = "python ../bin/ipengine --furl-file=" + furl_path
+        print "Retrieving json file from " + from_json_path + " to " + json_path
+        shutil.copyfile(from_json_path, json_path)
+        cmd = "python ../bin/ipengine --quiet --file=" + json_path
     else:
-        cmd = "ipengine --furl-file=" + furl_path
+        cmd = "ipengine --quiet --file=" + local_json_path
     
     print "Starting local engine..."
     args = shlex.split(cmd)
@@ -89,7 +90,6 @@ signal.signal(signal.SIGTERM,handler)
 
 lengine=None
 
-NOOP=0
 DIE=1
 RESTART_ENGINE=2
 

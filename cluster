@@ -14,7 +14,7 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer
 import random
 import psutil
 import numpy
-from IPython.kernel import client
+from IPython.parallel import Client
 
 WHITE=0
 RED=1
@@ -68,6 +68,15 @@ class status:
     engine_type_count = defaultdict(int)
     engine_type_stats = dict()
 NOSTAT = (0.0, 0.0, 0.0, 0.0, 0.0)
+
+def get_queue_status(status, type) :
+    acc = 0
+    for key, value in status.items() :
+        if key == type :
+            acc += value
+        elif isinstance(key, int) :
+            acc += value.get(type, 0)
+    return acc
 
 #create a bordered window
 def border_win(parent,height,width,x,y,**kwargs):
@@ -235,17 +244,17 @@ def thread_display_status(gb,status):
                     gb.wcom_status.addstr(7,52,descr,curses.color_pair(color))
                
                 
-                if(status.queue_status):
-                    descr = "Failed: " + str(status.queue_status.get("failed",0))
-                    descr += "  Pending: " + str(status.queue_status.get("pending",0))
-                    descr += "  Scheduled: " + str(status.queue_status.get("scheduled",0))
-                    descr += "  Ready: " + str(status.queue_status.get("succeeded",0))
-                    gb.wcom_status.addstr(9,1,"Queue:")
-                    gb.wcom_status.addstr(9,18,descr)
+                if (status.queue_status) :
+                    descr = "Failed: " + str(get_queue_status(status.queue_status, "failed"))
+                    descr += "  Pending: " + str(get_queue_status(status.queue_status, "unassigned"))
+                    descr += "  Scheduled: " + str(get_queue_status(status.queue_status, "queue"))
+                    descr += "  Ready: " + str(get_queue_status(status.queue_status, "completed"))
+                    gb.wcom_status.addstr(9, 1, "Queue:")
+                    gb.wcom_status.addstr(9, 18, descr)
                 
                 gb.wcom_status.refresh()
         except Exception,e:
-            add_log_line(gb,"Exception in display thread: " + str(e),RED)
+            add_log_line(gb,"Exception in display thread: " + str(e), RED)
         finally:
             gb.lock.release()
             status.lock.release()
@@ -280,7 +289,11 @@ def build_windows(gb):
         gb.scr.erase()
         gb.scr.refresh()
         curses.start_color()
-        curses.curs_set(0)
+        # Invisibility mode of the cursor may not be supported by the terminal
+        try :
+            curses.curs_set(0)
+        except :
+            pass
         
         #curses getmaxyx does not work for resize screens to smaller sizes. Use stty instead. 
         rows, columns = os.popen('stty size', 'r').read().split()       
@@ -489,11 +502,12 @@ def start_controller(gb,status):
     status.lock.acquire()
     try:
         cwd = os.getcwd()
-        furl_path = cwd + "/engine.furl"
-        cmd = "ipcontroller --engine-port=" + str(status.iport) + " --engine-location=" + status.address + " --engine-furl=" + furl_path
-        add_log_line(gb,"Executing: " + cmd,GREEN)
+        engine_json_path = "./profile/security/ipcontroller-engine.json"
+        client_json_path = "./profile/security/ipcontroller-client.json"
+        cmd = "ipcontroller --HubFactory.iopub=%d,%d" % (int(status.iport) - 4, int(status.iport) + 7) +" --HubFactory.task=%d,%d" % (int(status.iport) - 3, int(status.iport) + 6) + " --HubFactory.mux=%d,%d" % (int(status.iport) - 2, int(status.iport) + 5) + " --HubFactory.control=%d,%d" % (int(status.iport) - 1, int(status.iport) + 4) + " --HubFactory.hb=%d,%d" % (int(status.iport) + 2, int(status.iport) + 3) + " --port=" + str(status.iport) + " --quiet --sqlitedb --location=" + status.address + " --hwm=" + str(status.hwm) + " --usethreads" + " --ip=*" + " --ProfileDir.location=" + cwd + "/profile/"
+        add_log_line(gb,"Executing: " + cmd, GREEN)
         args = shlex.split(cmd)
-        pc = Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        pc = Popen(args, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         status.controller = pc
         status.controller_monitor = psutil.Process(pc.pid)
     finally:
@@ -502,7 +516,7 @@ def start_controller(gb,status):
     log_output(pc.stderr,gb,RED)
     set_progress_bar(gb,0.4)
 
-    while(pc.poll() is None and not os.path.exists(furl_path)):
+    while(pc.poll() is None and not os.path.exists(engine_json_path)):
         time.sleep(1)
 
     if(not pc.poll() is None):
@@ -513,7 +527,7 @@ def start_controller(gb,status):
         time.sleep(5)
         while(retry):
             try:
-                status.taskclient = client.TaskClient()
+                status.taskclient = Client(client_json_path).load_balanced_view()
                 retry = 0
             except Exception, e:
                 retry -=1
@@ -537,7 +551,7 @@ def stop_controller(gb,status):
             stop_grid(gb,status,sum(status.grid_engines_count))
         
         status.taskclient = None
-        set_status_message(gb,"Waiting for controller to terminate..",YELLOW)
+        set_status_message(gb,"Waiting for controller to terminate..", YELLOW)
         if(controller_online(status)):
             status.controller.terminate()
             status.controller = None
@@ -545,22 +559,22 @@ def stop_controller(gb,status):
             time.sleep(2) #finishes log output, lets threads terminate
     finally:
         status.lock.release()
-    set_status_message(gb,"Controller offline..",YELLOW)
-    add_log_line(gb,"Controller stopped",MAGENTA)
+    set_status_message(gb, "Controller offline..", YELLOW)
+    add_log_line(gb,"Controller stopped", MAGENTA)
 
 
 def start_locals(gb,status,n):
     status.lock.acquire()
     try:
         if(not controller_online(status)):
-            set_status_message(gb,"Controller is not online",YELLOW)
+            set_status_message(gb,"Controller is not online", YELLOW)
         elif(n < 0):
-            set_status_message(gb,"Invalid number of engines to be started: " + str(n),YELLOW)
+            set_status_message(gb,"Invalid number of engines to be started: " + str(n), YELLOW)
         else: 
-            set_status_message(gb,"Starting local engines",YELLOW)
+            set_status_message(gb,"Starting local engines", YELLOW)
             chief_path = os.path.dirname(os.path.realpath(__file__)) + "/ipengine_chief"
             cmd = chief_path + " -t LOCAL -a " + str(status.address) + " -p " + str(status.port)
-            add_log_line(gb,"Starting engines using: " + cmd,GREEN)
+            add_log_line(gb,"Starting engines using: " + cmd, GREEN)
             args = shlex.split(cmd)
         
             set_progress_bar(gb,0.0)
@@ -572,8 +586,8 @@ def start_locals(gb,status,n):
                 set_progress_bar(gb,float(i+1) / float(n))
             time.sleep(2)
             stop_progress_bar(gb)
-            set_status_message(gb,"Local engines started",GREEN)
-            add_log_line(gb,str(n) + " local engines started",MAGENTA)
+            set_status_message(gb,"Local engines started", GREEN)
+            add_log_line(gb,str(n) + " local engines started", MAGENTA)
     finally:
         status.lock.release()
 
@@ -607,9 +621,6 @@ def start_pbs(gb,status,n):
             set_status_message(gb,"Invalid number of engines to be started: " + str(n),YELLOW)
         else: 
             set_status_message(gb,"Starting PBS engines",YELLOW)
-            cwd = os.getcwd()
-            furl_path = cwd + "/engine.furl"
-
             engine_path = os.path.dirname(os.path.realpath(__file__))
             cmd = "qsub -N ipython_engine -k n -V -v EPATH=" + engine_path + ",ADDRESS=" + status.address + ",PORT=" + status.port + " " + engine_path + "/ipython_engine"
             add_log_line(gb,"Starting engines using: " + cmd,GREEN)
@@ -720,7 +731,7 @@ def stop_grid(gb,status,n):
 
 def _get_subids_grid(id):
     idstatus = dict()
-    cmd = "/usr/bin/python /opt/glite/bin/glite-wms-job-status --noint -v 0 " + id
+    cmd = "/usr/bin/python /usr/bin/glite-wms-job-status --noint -v 0 " + id
     args = shlex.split(cmd)
     env = os.environ.copy()
     del env['PYTHONPATH']
@@ -841,15 +852,14 @@ def restart_engines(gb,status):
     add_log_line(gb,"All cluster engines restarted",MAGENTA)
 
 
-def init_status(status,envname,address,port,iport,minmemgb=0.0):
+def init_status(status,envname,address,port,iport,hwm,minmemgb=0.0):
     status.lock = threading.RLock()
     status.envname = envname
     status.address = address
     status.port = port
     status.iport = iport
     status.minmem = minmemgb
-
-
+    status.hwm = hwm
 
 NOOP=0
 DIE=1
@@ -1083,7 +1093,7 @@ def thread_grid_monitor(status):
             idstatus = dict()
             countstatus = defaultdict(int)
             for id in grid_engines:
-                cmd = "/usr/bin/python /opt/glite/bin/glite-wms-job-status --noint -v 0 " + id
+                cmd = "/usr/bin/python /usr/bin/glite-wms-job-status --noint -v 0 " + id
                 args = shlex.split(cmd)
                 env = os.environ.copy()
                 del env['PYTHONPATH']
@@ -1150,6 +1160,7 @@ def main(scr, *args, **kwds):
     iport   = "30023"
     port    = "30024"
     minmemgb = 0.0
+    hwm     = "10"
     for o,a in opts:
         if o in ('-e', '--env'):
             envname = a
@@ -1161,11 +1172,13 @@ def main(scr, *args, **kwds):
             iport = a
         elif o in ('-m', '--mem'):
             minmemgb = float(a)
+        elif o in ('--hwm', ):
+            hwm = a
    
     if address is None:
         address = get_hostname()
 
-    init_status(status,envname,address,port,iport,minmemgb)
+    init_status(status,envname,address,port,iport,hwm,minmemgb)
     gb.scr = scr
     gb.log_file = open('cluster.log','w')
 
