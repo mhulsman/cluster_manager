@@ -7,7 +7,7 @@ PORT=$3
 PARAMNR=$4
 ENVNAME=`basename $ENVPATH`
 
-export LFC_HOME=/grid/lsgrid/alexeyg/
+export LFC_HOME=XXLFCHOMEXX
 export LFC_HOST=lfc.grid.sara.nl
 
 #Wait a random time to not overload the server after submission of a number of jobs.
