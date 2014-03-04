@@ -16,6 +16,11 @@ WAIT=$[ ($RANDOM % 180) ]
 sleep $WAIT
 echo "Waiting period over for $PARAMNR, starting bootstrap."
 
+echo "Running ulimit"
+ulimit;
+limit stacksize unlimited;
+limit memoryuse unlimited;
+
 #load environment
 chmod 744 ./gcp
 ./gcp $ENVPATH .

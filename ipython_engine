@@ -4,4 +4,9 @@
 #PBS -V
 #PBS -r n
 cd $PBS_O_WORKDIR
+#Wait a random time to not overload the server after submission of a number of jobs.
+echo "Waiting..."
+WAIT=$[ ($RANDOM % 180) ]
+sleep $WAIT
+echo "Waiting period over for $PARAMNR, starting chief."
 XXAPPPATHXX/ipengine_chief -t PBS -a $ADDRESS -p $PORT
